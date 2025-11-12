@@ -34,6 +34,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import TimeoutException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager  # Auto-install ChromeDriver
 from tqdm import tqdm
 import yake  # For keyword extraction
 
@@ -470,13 +471,25 @@ class WebScraper:
         }
 
     def setup_driver(self) -> webdriver.Chrome:
-        """Setup Chrome driver with optimized options"""
+        """Setup Chrome driver with optimized options (Windows-compatible)"""
         try:
             chrome_options = Options()
-            chrome_options.add_argument("--headless")
+
+            # Headless mode (new syntax for better compatibility)
+            chrome_options.add_argument("--headless=new")
+
+            # Core stability options
             chrome_options.add_argument("--no-sandbox")
             chrome_options.add_argument("--disable-dev-shm-usage")
             chrome_options.add_argument("--disable-gpu")
+
+            # Windows-specific fixes for DevToolsActivePort error
+            chrome_options.add_argument("--disable-software-rasterizer")
+            chrome_options.add_argument("--disable-dev-tools")
+            chrome_options.add_argument("--remote-debugging-port=9222")
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+
+            # Memory optimization
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-images")
             chrome_options.add_argument("--disable-background-networking")
@@ -487,16 +500,22 @@ class WebScraper:
             chrome_options.add_argument("--no-first-run")
             chrome_options.add_argument("--no-default-browser-check")
             chrome_options.add_argument("--disable-notifications")
-            chrome_options.add_argument(
-                "user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-
-            # Memory optimization
             chrome_options.add_argument("--disable-web-resources")
             chrome_options.add_argument("--disable-plugins")
 
-            driver = webdriver.Chrome(options=chrome_options)
+            # Suppress logging (Windows fix)
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+
+            # User agent (Windows)
+            chrome_options.add_argument(
+                "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+
+            # Use webdriver-manager to automatically install and manage ChromeDriver
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+
             driver.set_page_load_timeout(self.config.timeout)
 
             self.logger.info("✓ Chrome driver initialized successfully")
@@ -505,10 +524,12 @@ class WebScraper:
         except Exception as e:
             self.logger.error(f"Failed to initialize Chrome driver: {e}")
             self.logger.error(
-                "\nPlease install ChromeDriver:\n"
-                "  Mac: brew install chromedriver\n"
-                "  Linux: sudo apt-get install chromium-chromedriver\n"
-                "  Windows: Download from https://chromedriver.chromium.org/"
+                "\nTroubleshooting steps:\n"
+                "  1. Install webdriver-manager: pip install webdriver-manager\n"
+                "  2. Update Chrome: https://www.google.com/chrome/\n"
+                "  3. Run: pip install selenium --upgrade\n"
+                "  4. Clear cache: Delete %USERPROFILE%\\.wdm folder (Windows)\n"
+                "  5. Try without headless: Comment out --headless in code\n"
             )
             sys.exit(1)
 
